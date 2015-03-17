@@ -1,19 +1,17 @@
 package client
 
-import (
-	"github.com/davecgh/go-spew/spew"
+import "encoding/json"
 
-	"encoding/json"
-)
+//go:generate protoc --go_out=. cast_channel.proto
 
 type Channel struct {
 	Client        *Client
 	SourceId      string
 	DestinationId string
 	Namespace     string
-	RequestId     int
 }
 
+// Send converts specified payload to JSON and sends wrapped message
 func (c *Channel) Send(payload interface{}) error {
 	payloadJson, err := json.Marshal(payload)
 	if err != nil {
@@ -28,6 +26,5 @@ func (c *Channel) Send(payload interface{}) error {
 		PayloadType:     CastMessage_STRING.Enum(),
 		PayloadUtf8:     &payloadStr,
 	}
-	spew.Dump(msg)
 	return c.Client.Send(&msg)
 }

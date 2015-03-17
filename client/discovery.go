@@ -3,8 +3,7 @@ package client
 import (
 	"time"
 
-	"github.com/armon/mdns"
-	"github.com/davecgh/go-spew/spew"
+	"github.com/yinghau76/mdns"
 )
 
 type ChromecastInfo struct {
@@ -12,11 +11,12 @@ type ChromecastInfo struct {
 	Port int
 }
 
-func SearchChromecast() chan ChromecastInfo {
+// https://github.com/jloutsenhizer/CR-Cast/wiki/Chromecast-Implementation-Documentation-WIP
+func SearchChromecast() <-chan ChromecastInfo {
 	entries := make(chan *mdns.ServiceEntry, 4)
 	go func() {
 		mdns.Query(&mdns.QueryParam{
-			Service: "_googlecast._tcp.local",
+			Service: "_googlecast._tcp",
 			Domain:  "local",
 			Timeout: 30 * time.Second,
 			Entries: entries,
@@ -26,7 +26,6 @@ func SearchChromecast() chan ChromecastInfo {
 	ret := make(chan ChromecastInfo)
 	go func() {
 		for entry := range entries {
-			spew.Dump(entry)
 			ret <- ChromecastInfo{
 				Host: entry.Addr.String(),
 				Port: entry.Port,

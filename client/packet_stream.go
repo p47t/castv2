@@ -17,30 +17,34 @@ func NewPacketStream(conn io.ReadWriteCloser) *PacketStream {
 		conn:    conn,
 		packets: make(chan []byte),
 	}
+	go ps.readPackets()
+
 	return &ps
 }
 
+// https://github.com/thibauts/node-castv2
 func (p *PacketStream) readPackets() {
-	go func() {
-		for {
-			var l uint32
-			err := binary.Read(p.conn, binary.BigEndian, &l)
-			if err != nil {
-				log.Fatalln("Failed to read packet length:", err)
-			}
-			if l > 0 {
-				packet := make([]byte, l)
-				i, err := p.conn.Read(packet)
-				if err != nil {
-					log.Fatalln("Failed to read packet:", err)
-				}
-				if i != int(l) {
-					log.Fatalln("Invalid packet size. Wanted:", l, "Read:", i)
-				}
-				p.packets <- packet
-			}
+	for {
+		// +----------------+------------------------------------------------+
+		// | Packet length  |               Payload (message)                |
+		// +----------------+------------------------------------------------+
+		var l uint32
+		err := binary.Read(p.conn, binary.BigEndian, &l)
+		if err != nil {
+			log.Fatalln("Failed to read packet length:", err)
 		}
-	}()
+		if l > 0 {
+			packet := make([]byte, l)
+			i, err := p.conn.Read(packet)
+			if err != nil {
+				log.Fatalln("Failed to read packet:", err)
+			}
+			if i != int(l) {
+				log.Fatalln("Invalid packet size. Wanted:", l, "Read:", i)
+			}
+			p.packets <- packet
+		}
+	}
 }
 
 func (p *PacketStream) Read() []byte {
