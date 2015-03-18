@@ -2,7 +2,6 @@ package client
 
 type receiverController struct {
 	channel *Channel
-	reqId   int
 }
 
 func NewReceiverController(client *Client, sourceId, destinationId string) *receiverController {
@@ -12,17 +11,19 @@ func NewReceiverController(client *Client, sourceId, destinationId string) *rece
 }
 
 func (c *receiverController) GetStatus() error {
-	c.channel.Send(&LaunchPayload{
-		Payload: Payload{
-			Type:      "LAUNCH",
-			RequestId: &c.reqId,
-		},
-		AppId: "YouTube",
-	})
-	c.reqId++
-
-	c.channel.Send(&Payload{
+	c.channel.Request(&Payload{
 		Type: "GET_STATUS",
+	})
+
+	return nil
+}
+
+func (c *receiverController) Launch(appId string) error {
+	c.channel.Request(&LaunchPayload{
+		Payload: Payload{
+			Type: "LAUNCH",
+		},
+		AppId: appId,
 	})
 	return nil
 }

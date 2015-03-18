@@ -10,9 +10,19 @@ type heartBeatController struct {
 }
 
 func NewHeartBeatController(client *Client, sourceId, destinationId string) *heartBeatController {
-	return &heartBeatController{
+	controller := &heartBeatController{
 		channel: client.NewChannel(sourceId, destinationId, "urn:x-cast:com.google.cast.tp.heartbeat"),
 	}
+
+	controller.channel.Listen("PING", controller.onPing)
+
+	return controller
+}
+
+func (c *heartBeatController) onPing(msg *CastMessage) {
+	c.channel.Send(&Payload{
+		Type: "PONG",
+	})
 }
 
 func (c *heartBeatController) Start() error {
@@ -26,10 +36,4 @@ func (c *heartBeatController) Start() error {
 		}
 	}()
 	return nil
-}
-
-func (c *heartBeatController) OnPing() {
-	c.channel.Send(&Payload{
-		Type: "PONG",
-	})
 }
