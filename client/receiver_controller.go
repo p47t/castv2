@@ -7,8 +7,7 @@ type receiverController struct {
 
 func NewReceiverController(client *Client, sourceId, destinationId string) *receiverController {
 	return &receiverController{
-		channel: client.NewChannel(sourceId, destinationId, "urn:x-cast:com.google.cast.tp.receiver"),
-		reqId:   1,
+		channel: client.NewChannel(sourceId, destinationId, "urn:x-cast:com.google.cast.receiver"),
 	}
 }
 
