@@ -13,8 +13,11 @@ import (
 type Client struct {
 	host          string
 	port          int
+	name          string
 	packetsStream *PacketStream
 	channels      []*Channel
+	requests      map[int]chan string
+	nextReqId     int
 }
 
 func NewClient(host string, port int) (*Client, error) {
@@ -40,15 +43,19 @@ func NewClient(host string, port int) (*Client, error) {
 			if err := proto.Unmarshal(packet, &msg); err != nil {
 				log.Fatalln("Failed to unmarshal CastMessage:", err)
 			}
-			log.Println("Got message:", spew.Sdump(msg))
 
-			var payload Payload
+			var payload map[string]interface{}
 			if err := json.Unmarshal([]byte(*msg.PayloadUtf8), &payload); err != nil {
 				log.Fatalln("Failed to unmarshal payload:", err)
 			}
 
-			for _, ch := range c.channels {
-				ch.OnMessage(&msg, &payload)
+			// Pass the result to request
+			switch reqId := payload["requestId"].(type) {
+			case int:
+				if res, ok := c.requests[reqId]; ok {
+					res <- *msg.PayloadUtf8
+					delete(c.requests, reqId)
+				}
 			}
 		}
 	}()
@@ -56,19 +63,17 @@ func NewClient(host string, port int) (*Client, error) {
 	return c, nil
 }
 
-func (c *Client) NewChannel(sourceId, destinationId, namespace string) *Channel {
+func (c *Client) NewChannel(destinationId, namespace string) *Channel {
 	ch := Channel{
 		client:        c,
-		sourceId:      sourceId,
 		destinationId: destinationId,
 		namespace:     namespace,
-		listeners:     make(map[string]func(*CastMessage)),
 	}
 	c.channels = append(c.channels, &ch)
 	return &ch
 }
 
-func (c *Client) Send(msg *CastMessage) error {
+func (c *Client) send(msg *CastMessage) error {
 	data, err := proto.Marshal(msg)
 	if err != nil {
 		return err
@@ -77,4 +82,49 @@ func (c *Client) Send(msg *CastMessage) error {
 	log.Println("Send message:", spew.Sdump(msg))
 
 	return err
+}
+
+// Send converts specified payload to JSON and sends wrapped message
+func (c *Client) Send(destinationId, namespace string, payload interface{}) error {
+	payloadJson, err := json.Marshal(payload)
+	if err != nil {
+		return nil
+	}
+	payloadStr := string(payloadJson)
+	msg := CastMessage{
+		ProtocolVersion: CastMessage_CASTV2_1_0.Enum(),
+		SourceId:        &c.name,
+		DestinationId:   &destinationId,
+		Namespace:       &namespace,
+		PayloadType:     CastMessage_STRING.Enum(),
+		PayloadUtf8:     &payloadStr,
+	}
+	return c.send(&msg)
+}
+
+func (c *Client) NextReqId() int {
+	reqId := c.nextReqId
+	c.nextReqId++
+	return reqId
+}
+
+// Request sends request with request ID and wait for response
+func (c *Client) Request(destinationId, namespace string, req Request) (Response, error) {
+	reqId := c.NextReqId()
+	req.setRequestId(reqId)
+
+	// Map request ID to result
+	result := make(chan string, 1)
+	c.requests[reqId] = result
+
+	if err := c.Send(destinationId, namespace, req); err != nil {
+		return nil, err
+	}
+
+	// Wait for result
+	return <-result, nil
+}
+
+func (c *Client) GetStatus() {
+	c.Request("receiver-0", "urn:x-cast:com.google.cast.receiver", &Payload{})
 }

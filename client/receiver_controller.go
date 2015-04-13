@@ -4,9 +4,9 @@ type receiverController struct {
 	channel *Channel
 }
 
-func NewReceiverController(client *Client, sourceId, destinationId string) *receiverController {
+func NewReceiverController(client *Client, destinationId string) *receiverController {
 	return &receiverController{
-		channel: client.NewChannel(sourceId, destinationId, "urn:x-cast:com.google.cast.receiver"),
+		channel: client.NewChannel(destinationId, "urn:x-cast:com.google.cast.receiver"),
 	}
 }
 

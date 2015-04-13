@@ -6,9 +6,9 @@ type connectionController struct {
 	channel *Channel
 }
 
-func NewConnectionController(client *Client, sourceId, destinationId string) *connectionController {
+func NewConnectionController(client *Client, destinationId string) *connectionController {
 	return &connectionController{
-		channel: client.NewChannel(sourceId, destinationId, "urn:x-cast:com.google.cast.tp.connection"),
+		channel: client.NewChannel(destinationId, "urn:x-cast:com.google.cast.tp.connection"),
 	}
 }
 
