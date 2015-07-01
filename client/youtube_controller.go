@@ -47,6 +47,14 @@ func (c *youtubeController) Load(videoID string) error {
 	return nil
 }
 
+func (c *youtubeController) GetStatus() error {
+	_, err := c.channel.Request(&Payload{
+		Type: "GET_STATUS",
+	})
+
+	return err
+}
+
 type (
 	flingVideoPayload struct {
 		Payload

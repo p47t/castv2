@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/golang/protobuf/proto"
 )
 
@@ -22,8 +21,9 @@ type Client struct {
 
 func NewClient(host string, port int) (*Client, error) {
 	c := &Client{
-		host: host,
-		port: port,
+		host:     host,
+		port:     port,
+		requests: make(map[int]chan string),
 	}
 	hostAddr := fmt.Sprintf("%s:%d", c.host, c.port)
 	log.Println("Dialing to:", hostAddr)
@@ -31,36 +31,48 @@ func NewClient(host string, port int) (*Client, error) {
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("Failed to connect:%s", err)
+		log.Println("Failed to dial:", err)
+		return nil, fmt.Errorf("Failed to dial: %s", err)
 	}
 
 	c.packetsStream = NewPacketStream(conn)
+	go c.dispatchResponses()
+	return c, nil
+}
 
-	go func() {
-		for {
-			packet := c.packetsStream.Read()
-			msg := CastMessage{}
-			if err := proto.Unmarshal(packet, &msg); err != nil {
-				log.Fatalln("Failed to unmarshal CastMessage:", err)
+func (c *Client) dispatchResponses() {
+	for {
+		packet := c.packetsStream.Read()
+		msg := CastMessage{}
+		if err := proto.Unmarshal(packet, &msg); err != nil {
+			log.Fatalln("Failed to unmarshal CastMessage:", err)
+		}
+
+		log.Println("Recv:", *msg.PayloadUtf8)
+
+		// Unmarshal to check requestId
+		var payload map[string]interface{}
+		if err := json.Unmarshal([]byte(*msg.PayloadUtf8), &payload); err != nil {
+			log.Fatalln("Failed to unmarshal payload:", err)
+		}
+		switch requestId := payload["requestId"].(type) {
+		case float64:
+			reqId := int(requestId)
+			fmt.Println("requestId:", reqId)
+			if res, ok := c.requests[reqId]; ok {
+				// Pass the result to request
+				res <- *msg.PayloadUtf8
+				delete(c.requests, reqId)
 			}
-
-			var payload map[string]interface{}
-			if err := json.Unmarshal([]byte(*msg.PayloadUtf8), &payload); err != nil {
-				log.Fatalln("Failed to unmarshal payload:", err)
-			}
-
-			// Pass the result to request
-			switch reqId := payload["requestId"].(type) {
-			case int:
-				if res, ok := c.requests[reqId]; ok {
-					res <- *msg.PayloadUtf8
-					delete(c.requests, reqId)
+		default:
+			switch t := payload["type"].(type) {
+			case string:
+				if t == "PING" {
+					c.Send(*msg.DestinationId, *msg.Namespace, &Payload{Type: "PONG"})
 				}
 			}
 		}
-	}()
-
-	return c, nil
+	}
 }
 
 func (c *Client) NewChannel(destinationId, namespace string) *Channel {
@@ -73,13 +85,12 @@ func (c *Client) NewChannel(destinationId, namespace string) *Channel {
 	return &ch
 }
 
-func (c *Client) send(msg *CastMessage) error {
+func (c *Client) sendCastMessage(msg *CastMessage) error {
 	data, err := proto.Marshal(msg)
 	if err != nil {
 		return err
 	}
 	_, err = c.packetsStream.Write(data)
-	log.Println("Send message:", spew.Sdump(msg))
 
 	return err
 }
@@ -99,7 +110,8 @@ func (c *Client) Send(destinationId, namespace string, payload interface{}) erro
 		PayloadType:     CastMessage_STRING.Enum(),
 		PayloadUtf8:     &payloadStr,
 	}
-	return c.send(&msg)
+	log.Println("Send:", payloadStr)
+	return c.sendCastMessage(&msg)
 }
 
 func (c *Client) NextReqId() int {
@@ -125,6 +137,8 @@ func (c *Client) Request(destinationId, namespace string, req Request) (Response
 	return <-result, nil
 }
 
-func (c *Client) GetStatus() {
-	c.Request("receiver-0", "urn:x-cast:com.google.cast.receiver", &Payload{})
+// GetStatus gets receiver status
+func (c *Client) GetStatus() (string, error) {
+	response, err := c.Request("receiver-0", "urn:x-cast:com.google.cast.receiver", &Payload{})
+	return response.(string), err
 }

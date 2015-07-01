@@ -11,19 +11,19 @@ func NewReceiverController(client *Client, destinationId string) *receiverContro
 }
 
 func (c *receiverController) GetStatus() error {
-	c.channel.Request(&Payload{
+	_, err := c.channel.Request(&Payload{
 		Type: "GET_STATUS",
 	})
 
-	return nil
+	return err
 }
 
 func (c *receiverController) Launch(appId string) error {
-	c.channel.Request(&LaunchPayload{
+	_, err := c.channel.Request(&LaunchPayload{
 		Payload: Payload{
 			Type: "LAUNCH",
 		},
 		AppId: appId,
 	})
-	return nil
+	return err
 }
