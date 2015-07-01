@@ -10,11 +10,6 @@ func (p *Payload) setRequestId(reqId int) {
 	p.RequestId = &reqId
 }
 
-type LaunchPayload struct {
-	Payload
-	AppId string `json:"appId"`
-}
-
 type Request interface {
 	setRequestId(reqId int)
 }

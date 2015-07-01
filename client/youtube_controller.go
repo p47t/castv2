@@ -10,9 +10,9 @@ type youtubeController struct {
 	channel *Channel
 }
 
-func NewYouTubeController(client *Client, destinationId string) *youtubeController {
+func NewYouTubeController(client *Client, sourceId, destinationId string) *youtubeController {
 	return &youtubeController{
-		channel: client.NewChannel(destinationId, "urn:x-cast:com.google.youtube.mdx"),
+		channel: client.NewChannel(sourceId, destinationId, "urn:x-cast:com.google.youtube.mdx"),
 	}
 }
 
